@@ -443,6 +443,18 @@ def add_powerups(SCREEN,state, mapa, offset_y, font, font_name):
 
     return offset_y
 
+def add_player(SCREEN,state, mapa, offset_y, font, font_name):
+    if "player" in state: 
+        draw_info(SCREEN, "PLAYER: ", (scale((mapa.size[0], offset_y))),color=(0, 0, 0), src = font_name)
+
+        text = str(state["player"])
+
+        offset = (SCREEN.get_width()-((mapa.size[0]+1)* CHAR_LENGTH / SCALE))/2-font.render(text, True, (0, 0, 0), None).get_width()/2
+        draw_info(SCREEN, text, (scale((mapa.size[0] + (offset/ CHAR_LENGTH * SCALE), offset_y+1))),color=(0, 0, 0), src = font_name, scale = 2)
+        offset_y+=3
+
+    return offset_y
+
 async def main_game():
     global SPRITES, SCREEN, COUNT, COUNTF,MY_POWERUPS
 
@@ -468,6 +480,9 @@ async def main_game():
     BACKGROUND = draw_background(mapa)
     SCREEN.blit(BACKGROUND, (0, 0))
     main_group.add(BomberMan(pos=mapa.bomberman_spawn))
+    icon = pygame.Surface((CHAR_SIZE[0], CHAR_SIZE[1]))
+    icon.blit(SPRITES, (0, 0), tuple([x for x in (*BOMBERMAN["down1"], *scale((1, 1)))]))
+    pygame.display.set_icon(icon)
 
     state = {"score": 0, "player": "player1", "bomberman": (1, 1)}
     font_name = "data/digital-7.ttf"
@@ -483,13 +498,11 @@ async def main_game():
         bombs_group.clear(SCREEN, BACKGROUND)
         enemies_group.clear(SCREEN, clear_callback)
 
+        offset_y= add_player(SCREEN,state,mapa, offset_y, font, font_name)
+
         offset_y= add_level(SCREEN,state,mapa, offset_y, font, font_name)
 
         offset_y= add_score(SCREEN,state,mapa, offset_y, font, font_name)
-
-        if "player" in state:            
-            text = str(state["player"]).rjust(32)
-            draw_info(SCREEN, text, (4000, 1))
 
         offset_y= add_lives(SCREEN,state,mapa, offset_y, font, font_name, fps)
 
@@ -561,7 +574,7 @@ async def main_game():
         ):
             highscores = newgame_json["highscores"]
             if (f"{state['player']}", state["score"]) not in highscores:
-                highscores.append((f"<{state['player']}>", state["score"]))
+                highscores.append((f"{state['player']}", state["score"]))
             highscores = sorted(highscores, key=lambda s: s[1], reverse=True)[:-1]
 
             HIGHSCORES = pygame.Surface(scale((22  , 16)))
@@ -574,31 +587,32 @@ async def main_game():
             draw_info(HIGHSCORES, "TOTAL STEPS", scale((15, 3)), COLORS["orange"])
             MY_POWERUPS = []
             for i, highscore in enumerate(highscores):
-                c = (i % 5) + 1
-                draw_info(
-                    HIGHSCORES,
-                    RANKS[i + 1],
-                    scale((2, i + 5)),
-                    list(COLORS.values())[c],
-                )
-                draw_info(
-                    HIGHSCORES,
-                    str(highscore[1]),
-                    scale((6, i + 5)),
-                    list(COLORS.values())[c],
-                )
-                draw_info(
-                    HIGHSCORES,
-                    highscore[0],
-                    scale((11, i + 5)),
-                    list(COLORS.values())[c],
-                )
-                if len(highscore) > 2:
+                if i < 10:
+                    c = (i % 5) + 1
                     draw_info(
                         HIGHSCORES,
-                        str(highscore[2]),
-                        scale((15, i + 5)),
-                        list(COLORS.values())[c])
+                        RANKS[i + 1],
+                        scale((2, i + 5)),
+                        list(COLORS.values())[c],
+                    )
+                    draw_info(
+                        HIGHSCORES,
+                        str(highscore[1]),
+                        scale((6, i + 5)),
+                        list(COLORS.values())[c],
+                    )
+                    draw_info(
+                        HIGHSCORES,
+                        highscore[0],
+                        scale((11, i + 5)),
+                        list(COLORS.values())[c],
+                    )
+                    if len(highscore) > 2:
+                        draw_info(
+                            HIGHSCORES,
+                            str(highscore[2]),
+                            scale((15, i + 5)),
+                            list(COLORS.values())[c])
 
             SCREEN.blit(
                 HIGHSCORES,
