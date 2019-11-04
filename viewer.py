@@ -22,12 +22,14 @@ BOMBERMAN = {
     "up": (3 * 16, 1 * 16),
     "left": (0, 0),
     "down": (3 * 16, 0),
+    "down1": (4 * 16, 0),
+    "down2": (5 * 16, 0),
     "right": (0, 1 * 16),
 }
 BALLOOM = {
     "up": (0, 15 * 16),
     "left": (16, 15 * 16),
-    "down": (2 * 16, 15 * 16),
+    "down": (2 * 16, 15 * 16),  
     "right": (3 * 16, 15 * 16),
 }
 ONEAL = {
@@ -123,11 +125,14 @@ RANKS = {
 
 SPRITES = None
 
+COUNT = 0
+COUNTF = 0
+MY_POWERUPS = []
 
 async def messages_handler(ws_path, queue):
     async with websockets.connect(ws_path) as websocket:
         await websocket.send(json.dumps({"cmd": "join"}))
-
+        MY_POWERUPS = []
         while True:
             r = await websocket.recv()
             queue.put_nowait(r)
@@ -323,7 +328,9 @@ def scale(pos):
 
 
 def draw_background(mapa):
-    background = pygame.Surface(scale((int(mapa.size[0]), int(mapa.size[1]))))
+    background = pygame.Surface((SCREEN.get_width(),SCREEN.get_height()))
+
+    background.fill(SPRITES.get_at((1,1)))
     for x in range(int(mapa.size[0])):
         for y in range(int(mapa.size[1])):
             wx, wy = scale((x, y))
@@ -331,11 +338,24 @@ def draw_background(mapa):
                 background.blit(SPRITES, (wx, wy), (*STONE, *scale((1, 1))))
             else:
                 background.blit(SPRITES, (wx, wy), (*PASSAGE, *scale((1, 1))))
+    w = (1 *CHAR_LENGTH / SCALE)
+    for x in range(int(mapa.size[0]),int(mapa.size[0])+10):
+        wx, wy = scale((x, 0))
+        background.blit(SPRITES, (wx,wy), (*STONE, *scale((1, 1))))
+        background.blit(SPRITES, (wx,SCREEN.get_height()-w), (*STONE, *scale((1, 1))))
+
+    for y in range(int(mapa.size[1])):
+        wx, wy = scale((0, y))
+        background.blit(SPRITES, (SCREEN.get_width()-w,wy), (*STONE, *scale((1, 1))))
+
     return background
 
 
-def draw_info(SCREEN, text, pos, color=(0, 0, 0), background=None):
-    myfont = pygame.font.Font(None, int(22 / SCALE))
+def draw_info(SCREEN, text, pos, color=(0, 0, 0), background=None, scale = SCALE, src=None, font = None):
+    if font == None:
+        myfont = pygame.font.Font(src, int(22 * scale))
+    else:
+        myfont= font
     textsurface = myfont.render(text, True, color, background)
 
     x, y = pos
@@ -353,13 +373,78 @@ def draw_info(SCREEN, text, pos, color=(0, 0, 0), background=None):
     SCREEN.blit(textsurface, pos)
     return textsurface.get_width(), textsurface.get_height()
 
+def add_level(SCREEN,state, mapa, offset_y, font, font_name):
+    if "level" in state:
+        draw_info(SCREEN, "level: ", (scale((mapa.size[0], offset_y))),color=(0, 0, 0), src = font_name)
+
+        text = str(state['level'])
+        
+        offset = (SCREEN.get_width()-((mapa.size[0]+1)* CHAR_LENGTH / SCALE))/2-font.render(text, True, (0, 0, 0), None).get_width()/2
+        draw_info(SCREEN, text, (scale((mapa.size[0] + (offset/ CHAR_LENGTH * SCALE), offset_y+1))),color=(173, 0, 0), src = font_name, scale = 2)
+        offset_y+=3
+    return offset_y        
+
+def add_score(SCREEN,state, mapa, offset_y, font, font_name):
+    if "score" in state:
+        draw_info(SCREEN, "Score:", (scale((mapa.size[0], offset_y))),color=(0, 0, 0), src = font_name)
+        text = str(state["score"])
+
+        offset = (SCREEN.get_width()-((mapa.size[0]+1)* CHAR_LENGTH / SCALE))/2-font.render(text, True, (0, 0, 0), None).get_width()/2
+        draw_info(SCREEN, text, (scale((mapa.size[0] + (offset/ CHAR_LENGTH * SCALE), offset_y+1))),color=(0, 0, 0), src = font_name, scale = 2)
+        offset_y+=3
+    return offset_y         
+
+def add_steps(SCREEN,state, mapa, offset_y, font, font_name):
+    if "step" in state:
+            draw_info(SCREEN, "steps: ", (scale((mapa.size[0], mapa.size[1]-5))),color=(0, 0, 0), src = font_name)
+            text = str(state['step'])
+
+            offset = (SCREEN.get_width()-((mapa.size[0]+1)* CHAR_LENGTH / SCALE))/2-font.render(text, True, (0, 0, 0), None).get_width()/2
+            draw_info(SCREEN, text, (scale((mapa.size[0] + (offset/ CHAR_LENGTH * SCALE), mapa.size[1]-4))),color=(173, 0, 0), src = font_name, scale = 2) 
+
+def add_lives(SCREEN,state, mapa, offset_y, font, font_name, fps):
+    global COUNT, COUNTF
+    bomb_image = pygame.Surface((CHAR_SIZE[0]*2, CHAR_SIZE[1]*2))
+    if COUNTF == 0:
+        bomb_image.blit(pygame.transform.scale2x(SPRITES), (0, 0), tuple([x*2 for x in (*BOMBERMAN["down"], *scale((1, 1)))]))
+    elif COUNTF == 1:    
+        bomb_image.blit(pygame.transform.scale2x(SPRITES), (0, 0), tuple([x*2 for x in (*BOMBERMAN["down1"], *scale((1, 1)))]))
+    elif COUNTF == 2:    
+        bomb_image.blit(pygame.transform.scale2x(SPRITES), (0, 0), tuple([x*2 for x in (*BOMBERMAN["down2"], *scale((1, 1)))]))
+    else:    
+        bomb_image.blit(pygame.transform.scale2x(SPRITES), (0, 0), tuple([x*2 for x in (*BOMBERMAN["down1"], *scale((1, 1)))]))
+        COUNTF =-1
+    COUNTF+=1    
+
+    if COUNTF == int(fps/5):
+        COUNTF = 0
+        COUNT +=1
+    if "lives" in state:
+        draw_info(SCREEN, "lives: ", (scale((mapa.size[0], offset_y))),color=(0, 0, 0), src = font_name)
+        lives = state['lives']
+
+        for i in range(lives):
+            SCREEN.blit(bomb_image, (scale((mapa.size[0]+(i*2)+1 , offset_y+1+(10/CHAR_LENGTH * SCALE)))))
+        offset_y+=4    
+    return offset_y
 async def main_loop(q):
     while True:
         await main_game()
 
+def add_powerups(SCREEN,state, mapa, offset_y, font, font_name):
+    draw_info(SCREEN, "powerups: ", (scale((mapa.size[0], offset_y))),color=(0, 0, 0), src = font_name)
+
+    bomb_image = pygame.Surface((CHAR_SIZE[0], CHAR_SIZE[1]))
+    for p in POWERUPS:
+        offset_y+=1
+        bomb_image.blit(SPRITES, (0, 0), tuple([x for x in (*POWERUPS[p], *scale((1, 1)))]))
+        SCREEN.blit(bomb_image, (scale((mapa.size[0] , offset_y+1))))
+        draw_info(SCREEN, str(MY_POWERUPS.count(p))+"x", (scale((mapa.size[0]+2, offset_y+1))),color=(0, 0, 0), src = font_name)
+
+    return offset_y
 
 async def main_game():
-    global SPRITES, SCREEN
+    global SPRITES, SCREEN, COUNT, COUNTF,MY_POWERUPS
 
     main_group = pygame.sprite.LayeredUpdates()
     bombs_group = pygame.sprite.OrderedUpdates()
@@ -370,11 +455,14 @@ async def main_game():
     state = await q.get()  # first state message includes map information
     logging.debug("Initial game status: %s", state)
     newgame_json = json.loads(state)
+    fps = newgame_json["fps"]
 
     GAME_SPEED = newgame_json["fps"]
     mapa = Map(size=newgame_json["size"], mapa=newgame_json["map"])
     TIMEOUT = newgame_json["timeout"]
-    SCREEN = pygame.display.set_mode(scale(mapa.size))
+    s = scale(mapa.size)
+    s2 = scale((10,0))
+    SCREEN = pygame.display.set_mode([s[0]+s2[0],s[1]+s2[1]])
     SPRITES = pygame.image.load("data/nes.png").convert_alpha()
 
     BACKGROUND = draw_background(mapa)
@@ -382,8 +470,10 @@ async def main_game():
     main_group.add(BomberMan(pos=mapa.bomberman_spawn))
 
     state = {"score": 0, "player": "player1", "bomberman": (1, 1)}
-
+    font_name = "data/digital-7.ttf"
+    font = pygame.font.Font(font_name, int(22 * 2))
     while True:
+        offset_y = 1
         SCREEN.blit(BACKGROUND, (0, 0))
         pygame.event.pump()
         if pygame.key.get_pressed()[pygame.K_ESCAPE]:
@@ -393,21 +483,21 @@ async def main_game():
         bombs_group.clear(SCREEN, BACKGROUND)
         enemies_group.clear(SCREEN, clear_callback)
 
-        if "score" in state and "player" in state:
-            text = str(state["score"])
-            draw_info(SCREEN, text.zfill(6), (5, 1))
+        offset_y= add_level(SCREEN,state,mapa, offset_y, font, font_name)
+
+        offset_y= add_score(SCREEN,state,mapa, offset_y, font, font_name)
+
+        if "player" in state:            
             text = str(state["player"]).rjust(32)
             draw_info(SCREEN, text, (4000, 1))
 
-        if "lives" in state and "level" in state:
-            w,h = draw_info(SCREEN, "lives: ", (SCREEN.get_width()/4,1))
-            draw_info(SCREEN, f"{state['lives']}", (SCREEN.get_width()/4 + w ,1),color=(255, 0, 0))
-            w,h = draw_info(SCREEN, "level: ", (2*SCREEN.get_width()/4 ,1))        
-            draw_info(SCREEN, f"{state['level']}", (2*SCREEN.get_width()/4 + w,1),color=(255, 0, 0))
-        
-        if "step" in state:
-            w,h = draw_info(SCREEN, "steps: ", (3*SCREEN.get_width()/4,1))
-            draw_info(SCREEN, f"{state['step']}", (3*SCREEN.get_width()/4 + w ,1),color=(255, 0, 0))               
+        offset_y= add_lives(SCREEN,state,mapa, offset_y, font, font_name, fps)
+
+        offset_y= add_powerups(SCREEN,state,mapa, offset_y, font, font_name)             
+
+        offset_y= add_steps(SCREEN,state,mapa, offset_y, font, font_name)    
+
+                     
 
         if "bombs" in state:
             for bomb in bombs_group:
@@ -416,6 +506,8 @@ async def main_game():
             if len(bombs_group.sprites()) < len(state["bombs"]):
                 pos, timeout, radius = state["bombs"][-1]
                 bombs_group.add(Bomb(pos=pos, timeout=timeout, radius=radius))
+            if len(bombs_group.sprites()) > len(state["bombs"]):
+                bombs_group.empty()
             bombs_group.update(state["bombs"])
 
         if "enemies" in state:
@@ -446,6 +538,7 @@ async def main_game():
                 if isinstance(powerup, Powerups):
                     name = powerup.type
                     if name not in [p[1] for p in state["powerups"]]:
+                        MY_POWERUPS.append(name)
                         logger.debug(f"Remove {name}")
                         main_group.remove(powerup)
 
@@ -467,18 +560,19 @@ async def main_game():
             )
         ):
             highscores = newgame_json["highscores"]
-            if (f"<{state['player']}>", state["score"]) not in highscores:
+            if (f"{state['player']}", state["score"]) not in highscores:
                 highscores.append((f"<{state['player']}>", state["score"]))
             highscores = sorted(highscores, key=lambda s: s[1], reverse=True)[:-1]
 
-            HIGHSCORES = pygame.Surface(scale((20, 16)))
+            HIGHSCORES = pygame.Surface(scale((22  , 16)))
             HIGHSCORES.fill(COLORS["grey"])
 
             draw_info(HIGHSCORES, "THE 10 BEST PLAYERS", scale((5, 1)), COLORS["white"])
             draw_info(HIGHSCORES, "RANK", scale((2, 3)), COLORS["orange"])
             draw_info(HIGHSCORES, "SCORE", scale((6, 3)), COLORS["orange"])
             draw_info(HIGHSCORES, "NAME", scale((11, 3)), COLORS["orange"])
-
+            draw_info(HIGHSCORES, "TOTAL STEPS", scale((15, 3)), COLORS["orange"])
+            MY_POWERUPS = []
             for i, highscore in enumerate(highscores):
                 c = (i % 5) + 1
                 draw_info(
@@ -499,6 +593,12 @@ async def main_game():
                     scale((11, i + 5)),
                     list(COLORS.values())[c],
                 )
+                if len(highscore) > 2:
+                    draw_info(
+                        HIGHSCORES,
+                        str(highscore[2]),
+                        scale((15, i + 5)),
+                        list(COLORS.values())[c])
 
             SCREEN.blit(
                 HIGHSCORES,
